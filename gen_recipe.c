@@ -79,4 +79,5 @@ int main()
 		printf("};\n\n");
 		fflush(stdout);
 	}
+	return 0;
 }
