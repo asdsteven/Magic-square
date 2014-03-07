@@ -57,19 +57,18 @@ void gen_recipe()
 	}
 	
 	memset(a, 0, sizeof(a));
-	for (i = 0; i < d * 2 + 2; ++i) {
+	for (i = 0; i < d * 2 + 2; ++i)
 		if (answer[i] == 0) {
 			printf("-5, %d, %d,\n", line[list[i]][0], line[list[i]][1]);
-			continue;
+		} else {
+			k = line[list[i]][0];
+			for (j = 0; j < d; ++j) {
+				if (!a[k]++ && --answer[i])
+					printf("%d, ", k);
+				k += line[list[i]][1];
+			}
+			printf("-3, %d, %d,\n", line[list[i]][0], line[list[i]][1]);
 		}
-		k = line[list[i]][0];
-		for (j = 0; j < d; ++j) {
-			if (!a[k]++ && --answer[i])
-				printf("%d, ", k);
-			k += line[list[i]][1];
-		}
-		printf("-3, %d, %d,\n", line[list[i]][0], line[list[i]][1]);
-	}
 }
 
 int main()
