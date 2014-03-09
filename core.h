@@ -8,12 +8,12 @@
 #include <mysql/mysql.h>
 #include "recipe.h"
 
-int D, N, sum, e, lock;
+int D, N, sum, e;
 int *recipe;
-char a[37], used[37];
+char a[37], c[37], used[37];
 
-char s[336000], *t, *u;
-int M;
+char *s, *u;
+int M, len;
 
 jmp_buf exception;
 
@@ -42,6 +42,14 @@ MYSQL_ROW fetch_row()
 	return row;
 }
 
+char* fetch_item()
+{
+	MYSQL_ROW row = fetch_row();
+	if (!row)
+		longjmp(exception, 1);
+	return row[0];
+}
+
 void connect_db()
 {
 	if (!mysql_real_connect(mysql_init(&mysql),
@@ -57,11 +65,11 @@ void disconnect_db()
 
 int f(int i, int d)
 {
-	int s = a[i] + a[i + d] + a[i + d + d];
+	int s = a[i] + a[i += d] + a[i += d];
 	switch (D) {
-	case 6: s += a[i + 5 * d];
-	case 5: s += a[i + 4 * d];
-	case 4: s += a[i + 3 * d];
+	case 6: s += a[i += d];
+	case 5: s += a[i += d];
+	case 4: s += a[i += d];
 	}
 	return s;
 }
@@ -74,7 +82,7 @@ void search(int l)
 		l += 2;
 	}
 	if (recipe[l] < -1) {
-		int s = sum + '0' - f(recipe[l + 1], recipe[l + 2]);
+		int s = sum - f(recipe[l + 1], recipe[l + 2]);
 		if (recipe[l] == -5) {
 			if (s == 0)
 				search(l + 3);
@@ -86,79 +94,103 @@ void search(int l)
 			used[s] = 1;
 			search(l + 3);
 			used[s] = 0;
-			a[i] = '0';
+			a[i] = 0;
 		}
-	} else if (recipe[l] == -1 || l == e && lock) {
-		if (++M & 8191) {
-			u += sprintf(u, "(\'%s\'),", a);
+	} else if (l == e) {
+		int i = u - s;
+		if (i + 39 >= len) {
+			char *p = calloc(len *= 2, sizeof(char));
+			if (p == NULL) {
+				perror("Error calloc");
+				exit(-1);
+			}
+			u = p + i;
+			memcpy(p, s, i);
+			free(s);
+			s = p;
+		}
+		if (M++) {
+			*u++ = ',';
 		} else {
-			sprintf(u, "(\'%s\')", a);
-			u = t;
-			if (mysql_query(&mysql, s))
-				longjmp(exception, 1);
+			for (i = 0; i < N; ++i)
+				c[i] = a[i] + '0';
+			c[N] = 0;
 		}
+		*u++ = '(';
+		for (i = 0; i < N; ++i)
+			*u++ = a[i] + '0';
+		*u++ = ')';
 	} else {
-		int *i = a + recipe[l];
+		char *i = a + recipe[l];
 		for (*i = A; *i <= N; ++*i)
 			if (!used[*i]) {
 				used[*i] = 1;
 				search(l + 1);
 				used[*i] = 0;
 			}
-		*i = '0';
+		*i = 0;
 	}
 }
 
 void fetch_job()
 {
-	MYSQL_ROW row;
-	MYSQL_RES *result;
-	int i;
+	int i, size, l;
 	queryf("LOCK TABLES jobs WRITE");
-	queryf("SELECT c FROM jobs ORDER BY LENGTH(c), priority, l DESC LIMIT 1");
-	row = fetch_row();
-	if (!row)
-		longjmp(exception, 1);
-	D = sqrt(N = strlen(strcpy(a, row[0])));
+	queryf("SELECT c FROM jobs ORDER BY LENGTH(c), priority, LENGTH(REPLACE(c, \"0\", \"\")) DESC LIMIT 1");
+	strcpy(a, fetch_item());
 	queryf("UPDATE jobs SET priority=priority+1 WHERE c=%s", a);
+	queryf("UNLOCK TABLES");
+	N = strlen(a);
+	D = sqrt(N);
+	sum = D * (N + 1) / 2;
 	switch (D) {
 	case 3: recipe = recipe_book3; e = 0; break;
 	case 4: recipe = recipe_book4; e = 0; break;
 	case 5: recipe = recipe_book5; e = 5; break;
 	case 6: recipe = recipe_book6; e = 35; break;
 	}
-	sum = D * (N + 1) / 2;
 	memset(used, 0, sizeof(used));
-	l = 0;
-	lock = 1;
-	for (i = 0; i < N; ++i)
-		if (a[i] != '0') {
+	for (i = 0, size = 0; i < N; ++i)
+		if (a[i] -= '0') {
 			used[a[i]] = 1;
-			l = e;
-			lock = 0;
+			++size;
 		}
-	if (!lock)
-		queryf("UNLOCK TABLES");
 	for (i = 0; i < N; ++i)
-		printf("%2d%c", (int)a[i], (i + 1) % D ? ' ' : '\n');
+		printf("%2d%c", a[i], (i + 1) % D ? ' ' : '\n');
 	fflush(stdout);
-	if (l >= e)
-		u = t = s + sprintf(s, "INSERT IGNORE INTO solutions%d VALUES ", D);
-	else
-		u = t = s + sprintf(s, "INSERT IGNORE INTO jobs (c, l) VALUES ");
+	for (l = 0; size; )
+		switch (recipe[l]) {
+		case -2: l += 2; break;
+		case -3: l += 3; --size; break;
+		case -5: l += 3; --size; break;
+		default: l += 1; --size; break;
+		}
+	if (l == e) {
+		u = s + sprintf(s, "INSERT INTO solutions%d VALUES ", D);
+		while (recipe[e] != -1)
+			++e;
+	} else {
+		u = s + sprintf(s, "INSERT INTO jobs (c) VALUES ");
+	}
 	M = 0;
 	search(l);
-	u[-1] = '\0';
-	if (u != t && mysql_query(&mysql, s))
-		longjmp(exception, 1);
-	if (l >= e)
+	queryf("LOCK TABLES jobs WRITE");
+	queryf("SELECT FROM jobs WHERE c=%s", a);
+	if (fetch_row()) {
+		if (recipe[e] == -1)
+			queryf("SELECT FROM solutions%d WHERE c=%s", D, c);
+		else
+			queryf("SELECT FROM jobs WHERE c=%s", c);
+		if (!fetch_row() && mysql_real_query(&mysql, s, u - s))
+			longjmp(exception, 1);
+		queryf("DELETE FROM jobs WHERE c=%s", a);
+	}
+	queryf("UNLOCK TABLES");
+	if (recipe[e] == -1)
 		printf("%d magic squares found.\n", M);
 	else
 		printf("%d new jobs.\n\n", M);
 	fflush(stdout);
-	queryf("DELETE FROM jobs WHERE c=%s", a);
-	if (lock)
-		queryf("UNLOCK TABLES");
 }
 
 void h(int t)
@@ -175,6 +207,12 @@ void child(int n)
 		perror("Error making logfile");
 		exit(-1);
 	}
+	len = 262144;
+	s = calloc(len, sizeof(char));
+	if (s == NULL) {
+		perror("Error calloc");
+		exit(-1);
+	}
 	while (1) {
 		time_t t = time(NULL);
 		if (setjmp(exception)) { /*Handle MySQL errors*/
@@ -189,7 +227,7 @@ void child(int n)
 		}
 		connect_db();
 		fetch_job();
-		if (l >= e) {
+		if (recipe[e] == -1) {
 			t = time(NULL) - t;
 			seconds += t;
 			samples += 1;
@@ -212,10 +250,7 @@ void print_stat()
 	for (i = 3; i <= 6; ++i) {
 		t = time(NULL);
 		queryf("SELECT COUNT(*) FROM solutions%d", i);
-		row = fetch_row();
-		if (!row)
-			longjmp(exception, 1);
-		printf("Dimension %d: %15s\t", i, row[0]);
+		printf("Dimension %d: %15s\t", i, fetch_item());
 		h(time(NULL) - t);
 		putchar('\n');
 	}
@@ -249,14 +284,13 @@ void print(FILE *fp)
 	t = time(NULL);
 	while (row = mysql_fetch_row(result)) {
 		for (i = 0; i < N; ++i)
-			fprintf(fp, "%2d%c",
-				row[0][i], (i + 1) % D ? ' ' : '\n');
+			fprintf(fp, "%2d%c", row[0][i], (i + 1) % D ? ' ' : '\n');
 		fputc('\n', fp);
 		if (++j == 1e9) {
 			++jj;
 			j = 0;
 		}
-		if (!(j & 8191)) {
+		if (~j & 8191) {
 			printf("Printed %s\t", ll(jj, j));
 			h(time(NULL) - t);
 			putchar('\r');
@@ -277,11 +311,11 @@ void parent(int n)
 	printf(":::::::::Forked %d processes:::::::\n", n);
 	loop:
 	printf("+-------------------------------------------------+\n");
-	printf("|       1       Print statistics		          |\n");
-	printf("|       2       Generate magic_square.txt	      |\n");
-	printf("|       3       Quit			                  |\n");
-	printf("|						                          |\n");
-	printf("				                    --------------+\r");
+	printf("|       1       Print statistics                  |\n");
+	printf("|       2       Generate magic_square.txt         |\n");
+	printf("|       3       Quit                              |\n");
+	printf("|                                                 |\n");
+	printf("                                    --------------+\r");
 	printf("+------  Action number: ");
 	fflush(stdout);
 	scanf("%d", &action);
