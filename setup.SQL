@@ -1,3 +1,5 @@
+SET GLOBAL max_allowed_packet=1073741824;
+
 #Create a empty database
 DROP DATABASE IF EXISTS db;
 CREATE DATABASE db;
@@ -15,10 +17,10 @@ CREATE TABLE solutions6 (c BINARY(36)) ENGINE = MYISAM;
 
 #Initialize jobs for dimension 3, 4, 5 and 6 respectively
 INSERT INTO jobs (c) VALUES
-	(REPEAT("0", 9)),
-	(REPEAT("0", 16)),
-	(REPEAT("0", 25)),
-	(REPEAT("0", 36));
+	(REPEAT("a", 9)),
+	(REPEAT("a", 16)),
+	(REPEAT("a", 25)),
+	(REPEAT("a", 36));
 
 #Create user and grant privileges for security measures
 DROP USER 'client';
