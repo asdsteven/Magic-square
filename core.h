@@ -49,7 +49,7 @@ char* fetch_item()
 void connect_db()
 {
 	if (!mysql_real_connect(mysql_init(&mysql),
-			"localhost", "client",
+			"127.0.0.1", "client",
 			"1234", "db", 0, NULL, 0))
 		longjmp(exception, 1);
 }
@@ -138,7 +138,7 @@ void fetch_job()
 	int i, size, l;
 	queryf("LOCK TABLES jobs WRITE");
 	queryf("SELECT c FROM jobs ORDER BY LENGTH(c), priority, "
-		"LENGTH(REPLACE(c, \"a\", \"\")) DESC LIMIT 1");
+		"LENGTH(REPLACE(c, \"a\", \"\")) DESC, c LIMIT 1");
 	strcpy(a, fetch_item());
 	queryf("UPDATE jobs SET priority=priority+1 WHERE c=\"%s\"", a);
 	queryf("UNLOCK TABLES");
