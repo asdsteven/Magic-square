@@ -8,12 +8,14 @@
 #include <mysql/mysql.h>
 #include "recipe.h"
 
-int D, N, sum, e;
+int D, N, sum, e, E;
 int *recipe;
 char a[37], c[37], used[37];
 
 char *s, *u;
-int M, len;
+unsigned M, len;
+
+int sym[] = {0, 1, 0, 8, 32, 32, 192};
 
 jmp_buf exception;
 
@@ -30,7 +32,7 @@ void queryf(const char *format, ...)
 		longjmp(exception, 1);
 }
 
-MYSQL_ROW fetch_row()
+char* fetch_item()
 {
 	MYSQL_RES *result;
 	MYSQL_ROW row;
@@ -39,12 +41,6 @@ MYSQL_ROW fetch_row()
 		longjmp(exception, 1);
 	row = mysql_fetch_row(result);
 	mysql_free_result(result);
-	return row;
-}
-
-char* fetch_item()
-{
-	MYSQL_ROW row = fetch_row();
 	if (!row)
 		longjmp(exception, 1);
 	return row[0];
@@ -76,6 +72,35 @@ int f(int i, int d)
 
 void search(int l)
 {
+	if (l == e || E) {
+		int i = u - s;
+		E = E || recipe[e] != -1;
+		if (i + 41 >= len) {
+			char *p = calloc(len *= 2, sizeof(char));
+			if (p == NULL) {
+				perror("\n");
+				exit(-1);
+			}
+			u = p + i;
+			memcpy(p, s, i);
+			free(s);
+			s = p;
+		}
+		if (M++) {
+			*u++ = ',';
+		} else {
+			for (i = 0; i < N; ++i)
+				c[i] = a[i] + 'a';
+			c[N] = 0;
+		}
+		*u++ = '(';
+		*u++ = '\"';
+		for (i = 0; i < N; ++i)
+			*u++ = a[i] + 'a';
+		*u++ = '\"';
+		*u++ = ')';
+		return;
+	}
 	int A = 1;
 	if (recipe[l] == -2) {
 		A = a[recipe[l + 1]] + 1;
@@ -96,30 +121,6 @@ void search(int l)
 			used[s] = 0;
 			a[i] = 0;
 		}
-	} else if (l == e) {
-		int i = u - s;
-		if (i + 39 >= len) {
-			char *p = calloc(len *= 2, sizeof(char));
-			if (p == NULL) {
-				perror("Error calloc");
-				exit(-1);
-			}
-			u = p + i;
-			memcpy(p, s, i);
-			free(s);
-			s = p;
-		}
-		if (M++) {
-			*u++ = ',';
-		} else {
-			for (i = 0; i < N; ++i)
-				c[i] = a[i] + '0';
-			c[N] = 0;
-		}
-		*u++ = '(';
-		for (i = 0; i < N; ++i)
-			*u++ = a[i] + '0';
-		*u++ = ')';
 	} else {
 		char *i = a + recipe[l];
 		for (*i = A; *i <= N; ++*i)
@@ -136,9 +137,10 @@ void fetch_job()
 {
 	int i, size, l;
 	queryf("LOCK TABLES jobs WRITE");
-	queryf("SELECT c FROM jobs ORDER BY LENGTH(c), priority, LENGTH(REPLACE(c, \"0\", \"\")) DESC LIMIT 1");
+	queryf("SELECT c FROM jobs ORDER BY LENGTH(c), priority, "
+		"LENGTH(REPLACE(c, \"a\", \"\")) DESC LIMIT 1");
 	strcpy(a, fetch_item());
-	queryf("UPDATE jobs SET priority=priority+1 WHERE c=%s", a);
+	queryf("UPDATE jobs SET priority=priority+1 WHERE c=\"%s\"", a);
 	queryf("UNLOCK TABLES");
 	N = strlen(a);
 	D = sqrt(N);
@@ -146,12 +148,12 @@ void fetch_job()
 	switch (D) {
 	case 3: recipe = recipe_book3; e = 0; break;
 	case 4: recipe = recipe_book4; e = 0; break;
-	case 5: recipe = recipe_book5; e = 5; break;
-	case 6: recipe = recipe_book6; e = 35; break;
+	case 5: recipe = recipe_book5; e = 4; break;
+	case 6: recipe = recipe_book6; e = 27; break;
 	}
 	memset(used, 0, sizeof(used));
 	for (i = 0, size = 0; i < N; ++i)
-		if (a[i] -= '0') {
+		if (a[i] -= 'a') {
 			used[a[i]] = 1;
 			++size;
 		}
@@ -173,17 +175,25 @@ void fetch_job()
 		u = s + sprintf(s, "INSERT INTO jobs (c) VALUES ");
 	}
 	M = 0;
+	E = 0;
 	search(l);
-	queryf("LOCK TABLES jobs WRITE");
-	queryf("SELECT FROM jobs WHERE c=%s", a);
-	if (fetch_row()) {
-		if (recipe[e] == -1)
-			queryf("SELECT FROM solutions%d WHERE c=%s", D, c);
-		else
-			queryf("SELECT FROM jobs WHERE c=%s", c);
-		if (!fetch_row() && mysql_real_query(&mysql, s, u - s))
-			longjmp(exception, 1);
-		queryf("DELETE FROM jobs WHERE c=%s", a);
+	for (i = 0; i < N; ++i)
+		a[i] += 'a';
+	if (recipe[e] == -1)
+		queryf("LOCK TABLES jobs WRITE, solutions%d WRITE", D);
+	else
+		queryf("LOCK TABLES jobs WRITE");
+	queryf("SELECT COUNT(*) FROM jobs WHERE c=\"%s\"", a);
+	if (atoi(fetch_item())) {
+		if (M) {
+			if (recipe[e] == -1)
+				queryf("SELECT COUNT(*) FROM solutions%d WHERE c=\"%s\"", D, c);
+			else
+				queryf("SELECT COUNT(*) FROM jobs WHERE c=\"%s\"", c);
+			if (!atoi(fetch_item()) && mysql_real_query(&mysql, s, u - s))
+				longjmp(exception, 1);
+		}
+		queryf("DELETE FROM jobs WHERE c=\"%s\"", a);
 	}
 	queryf("UNLOCK TABLES");
 	if (recipe[e] == -1)
@@ -210,7 +220,7 @@ void child(int n)
 	len = 262144;
 	s = calloc(len, sizeof(char));
 	if (s == NULL) {
-		perror("Error calloc");
+		perror("\n");
 		exit(-1);
 	}
 	while (1) {
@@ -249,7 +259,7 @@ void print_stat()
 	time_t t;
 	for (i = 3; i <= 6; ++i) {
 		t = time(NULL);
-		queryf("SELECT COUNT(*) FROM solutions%d", i);
+		queryf("SELECT %d*COUNT(*) FROM solutions%d", sym[i], i);
 		printf("Dimension %d: %15s\t", i, fetch_item());
 		h(time(NULL) - t);
 		putchar('\n');
@@ -310,12 +320,12 @@ void parent(int n)
 	FILE *fp = NULL;
 	printf(":::::::::Forked %d processes:::::::\n", n);
 	loop:
-	printf("+-------------------------------------------------+\n");
-	printf("|       1       Print statistics                  |\n");
-	printf("|       2       Generate magic_square.txt         |\n");
-	printf("|       3       Quit                              |\n");
-	printf("|                                                 |\n");
-	printf("                                    --------------+\r");
+	printf("+------------------------------------------------+\n");
+	printf("|    1    Print statistics                       |\n");
+	printf("|    2    Generate element_magic_square.txt      |\n");
+	printf("|    3    Quit                                   |\n");
+	printf("|                                                |\n");
+	printf("                                    -------------+\r");
 	printf("+------  Action number: ");
 	fflush(stdout);
 	scanf("%d", &action);
@@ -326,7 +336,7 @@ void parent(int n)
 	do { /*clear stdin*/
 		c = getchar();
 	} while (c != EOF && c != '\n');
-	printf("/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\\\n");
+	printf("/~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\\\n");
 	if (setjmp(exception)) {
 		printf("\nError [%d] %s\n", mysql_errno(&mysql), mysql_error(&mysql));
 		if (fp != NULL)
@@ -354,7 +364,7 @@ void parent(int n)
 		}
 	}
 	disconnect_db();
-	printf("\\_________________________________________________/\n\n\n");
+	printf("\\________________________________________________/\n\n\n");
 	goto loop;
 }
 
@@ -363,8 +373,8 @@ int fetch_forks(int argc, char **argv, int processors)
 	printf(
 	"Usage: %s [-f n]\n"
 	"  -f  If n = 0, 1 process per core is forked (Default)\n"
-	"	   If n > 0, exactly n processes are forked\n"
-	"	   If n < 0, |n| cores are reserved unused\n"
+	"      If n > 0, exactly n processes are forked\n"
+	"      If n < 0, |n| cores are reserved unused\n"
 	"\n"
 	"Examples:\n"
 	"  %s -f 4    #fork 4 processes\n"
