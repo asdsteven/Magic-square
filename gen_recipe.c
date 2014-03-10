@@ -106,7 +106,7 @@ int main()
 		printf("int recipe_book%d[] = {\n", d);
 		gen_recipe();
 		print_recipe();
-		printf("};\n\n");
+		printf("-1\n};\n\n");
 		fflush(stdout);
 	}
 	return 0;
