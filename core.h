@@ -96,7 +96,8 @@ void search(int l)
 		*u++ = '(';
 		*u++ = '\"';
 		for (i = 0; i < N; ++i)
-			*u++ = a[i] + 'A';
+			if ('\\' == (*u++ = a[i] + 'A'))
+				*u++ = '\\';
 		*u++ = '\"';
 		*u++ = ')';
 		return;
@@ -137,12 +138,14 @@ void search(int l)
 void fetch_job()
 {
 	int i, size, l;
+	connect_db();
 	queryf("LOCK TABLES jobs WRITE");
 	queryf("SELECT c FROM jobs ORDER BY LENGTH(c), priority, "
 		"LENGTH(REPLACE(c, \"A\", \"\")) DESC, c LIMIT 1");
 	strcpy(a, fetch_item());
 	queryf("UPDATE jobs SET priority=priority+1 WHERE c=\"%s\"", a);
 	queryf("UNLOCK TABLES");
+	disconnect_db();
 	N = strlen(a);
 	D = sqrt(N);
 	sum = D * (N + 1) / 2;
@@ -150,7 +153,7 @@ void fetch_job()
 	case 3: recipe = recipe_book3; e = 0; break;
 	case 4: recipe = recipe_book4; e = 0; break;
 	case 5: recipe = recipe_book5; e = 8; break;
-	case 6: recipe = recipe_book6; e = 45; break;
+	case 6: recipe = recipe_book6; e = 40; break;
 	}
 	memset(used, 0, sizeof(used));
 	for (i = 0, size = 0; i < N; ++i)
@@ -180,6 +183,7 @@ void fetch_job()
 	search(l);
 	for (i = 0; i < N; ++i)
 		a[i] += 'A';
+	connect_db();
 	if (recipe[e] == -1)
 		queryf("LOCK TABLES jobs WRITE, solutions%d WRITE", D);
 	else
@@ -197,6 +201,7 @@ void fetch_job()
 		queryf("DELETE FROM jobs WHERE c=\"%s\"", a);
 	}
 	queryf("UNLOCK TABLES");
+	disconnect_db();
 	if (recipe[e] == -1)
 		printf("%d magic squares found.\n", M);
 	else
@@ -211,7 +216,7 @@ void h(int t)
 
 void child(int n)
 {
-	int seconds = 0, samples = 0;
+	int seconds[7], samples[7], max[7];
 	char logfile[50];
 	sprintf(logfile, "proc_%d.txt", n);
 	if (!freopen(logfile, "w", stdout)) {
@@ -224,6 +229,9 @@ void child(int n)
 		perror("\n");
 		exit(-1);
 	}
+	memset(seconds, 0, sizeof(seconds));
+	memset(samples, 0, sizeof(samples));
+	memset(max, 0, sizeof(max));
 	while (1) {
 		time_t t = time(NULL);
 		if (setjmp(exception)) { /*Handle MySQL errors*/
@@ -236,20 +244,23 @@ void child(int n)
 			while (time(NULL) - t < 60); /*Wait a minute*/
 			continue;
 		}
-		connect_db();
 		fetch_job();
 		if (recipe[e] == -1) {
 			t = time(NULL) - t;
-			seconds += t;
-			samples += 1;
+			seconds[D] += t;
+			samples[D] += 1;
+			if (t > max[D])
+				max[D] = t;
 			h(t);
 			printf(", ");
-			h(seconds);
-			printf("/%d = ", samples);
-			h(seconds / samples), printf("/job\n\n");
+			h(max[D]);
+			printf(", ");
+			h(seconds[D]);
+			printf("/%d = ", samples[D]);
+			h(seconds[D] / samples[D]);
+			printf("/job\n\n");
 			fflush(stdout);
 		}
-		disconnect_db();
 	}
 }
 
