@@ -90,14 +90,13 @@ void search(int l)
 			*u++ = ',';
 		} else {
 			for (i = 0; i < N; ++i)
-				c[i] = a[i] + 'A';
+				c[i] = a[i] + '0';
 			c[N] = 0;
 		}
 		*u++ = '(';
 		*u++ = '\"';
 		for (i = 0; i < N; ++i)
-			if ('\\' == (*u++ = a[i] + 'A'))
-				*u++ = '\\';
+			*u++ = a[i] + '0';
 		*u++ = '\"';
 		*u++ = ')';
 		return;
@@ -141,7 +140,7 @@ void fetch_job()
 	connect_db();
 	queryf("LOCK TABLES jobs WRITE");
 	queryf("SELECT c FROM jobs ORDER BY LENGTH(c), priority, "
-		"LENGTH(REPLACE(c, \"A\", \"\")) DESC, c LIMIT 1");
+		"LENGTH(REPLACE(c, \"0\", \"\")) DESC, c LIMIT 1");
 	strcpy(a, fetch_item());
 	queryf("UPDATE jobs SET priority=priority+1 WHERE c=\"%s\"", a);
 	queryf("UNLOCK TABLES");
@@ -157,7 +156,7 @@ void fetch_job()
 	}
 	memset(used, 0, sizeof(used));
 	for (i = 0, size = 0; i < N; ++i)
-		if (a[i] -= 'A') {
+		if (a[i] -= '0') {
 			used[a[i]] = 1;
 			++size;
 		}
@@ -182,7 +181,7 @@ void fetch_job()
 	E = 0;
 	search(l);
 	for (i = 0; i < N; ++i)
-		a[i] += 'A';
+		a[i] += '0';
 	connect_db();
 	if (recipe[e] == -1)
 		queryf("LOCK TABLES jobs WRITE, solutions%d WRITE", D);
