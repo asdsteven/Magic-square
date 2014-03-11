@@ -101,17 +101,18 @@ void search(int l)
 		*u++ = ')';
 		return;
 	}
-	int A = 1;
+	int A = 1, B = N;
 	if (recipe[l] == -2) {
 		A = a[recipe[l + 1]] + 1;
-		l += 2;
+		B = recipe[l + 2];
+		l += 3;
 	}
 	if (recipe[l] < -1) {
 		int s = sum - f(recipe[l + 1], recipe[l + 2]);
 		if (recipe[l] == -5) {
 			if (s == 0)
 				search(l + 3);
-		} else if (A <= s && s <= N && !used[s]) {
+		} else if (A <= s && s <= B && !used[s]) {
 			int i = recipe[l + 1];
 			while (a[i])
 				i += recipe[l + 2];
@@ -123,7 +124,7 @@ void search(int l)
 		}
 	} else {
 		char *i = a + recipe[l];
-		for (*i = A; *i <= N; ++*i)
+		for (*i = A; *i <= B; ++*i)
 			if (!used[*i]) {
 				used[*i] = 1;
 				search(l + 1);
@@ -148,8 +149,8 @@ void fetch_job()
 	switch (D) {
 	case 3: recipe = recipe_book3; e = 0; break;
 	case 4: recipe = recipe_book4; e = 0; break;
-	case 5: recipe = recipe_book5; e = 4; break;
-	case 6: recipe = recipe_book6; e = 27; break;
+	case 5: recipe = recipe_book5; e = 8; break;
+	case 6: recipe = recipe_book6; e = 45; break;
 	}
 	memset(used, 0, sizeof(used));
 	for (i = 0, size = 0; i < N; ++i)
@@ -162,7 +163,7 @@ void fetch_job()
 	fflush(stdout);
 	for (l = 0; size; )
 		switch (recipe[l]) {
-		case -2: l += 2; break;
+		case -2: l += 3; break;
 		case -3: l += 3; --size; break;
 		case -5: l += 3; --size; break;
 		default: l += 1; --size; break;
