@@ -153,7 +153,7 @@ void fetch_job()
 	case 3: recipe = recipe_book3; e = 0; break;
 	case 4: recipe = recipe_book4; e = 0; break;
 	case 5: recipe = recipe_book5; e = 8; break;
-	case 6: recipe = recipe_book6; e = 40; break;
+	case 6: recipe = recipe_book6; e = 36; break;
 	}
 	memset(used, 0, sizeof(used));
 	for (i = 0, size = 0; i < N; ++i)
