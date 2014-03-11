@@ -1,7 +1,7 @@
 Magic-square
 ============
 
-Can solve 5 x 5 in 2 hrs on one machine with duo-core Celeron.
+Can solve 5 x 5 in 4 hrs with one cpu
 
 Distributed magic square searching
 
