@@ -17,10 +17,10 @@ CREATE TABLE solutions6 (c BINARY(36)) ENGINE = MYISAM;
 
 #Initialize jobs for dimension 3, 4, 5 and 6 respectively
 INSERT INTO jobs (c) VALUES
-	(REPEAT("A", 9)),
-	(REPEAT("A", 16)),
-	(REPEAT("A", 25)),
-	(REPEAT("A", 36));
+	(REPEAT("0", 9)),
+	(REPEAT("0", 16)),
+	(REPEAT("0", 25)),
+	(REPEAT("0", 36));
 
 #Create user and grant privileges for security measures
 DROP USER 'client';
