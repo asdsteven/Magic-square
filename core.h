@@ -261,7 +261,7 @@ void print_stat()
 	for (i = 3; i <= 6; ++i) {
 		t = time(NULL);
 		queryf("SELECT %d*COUNT(*) FROM solutions%d", sym[i], i);
-		printf("Dimension %d: %15s\t", i, fetch_item());
+		printf(" Dimension %d: %15s\t", i, fetch_item());
 		h(time(NULL) - t);
 		putchar('\n');
 	}
