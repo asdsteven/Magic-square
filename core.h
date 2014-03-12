@@ -137,14 +137,12 @@ void search(int l)
 void fetch_job()
 {
 	int i, size, l;
-	connect_db();
 	queryf("LOCK TABLES jobs WRITE");
 	queryf("SELECT c FROM jobs ORDER BY LENGTH(c), priority, "
 		"LENGTH(REPLACE(c, \"0\", \"\")) DESC, c LIMIT 1");
 	strcpy(a, fetch_item());
 	queryf("UPDATE jobs SET priority=priority+1 WHERE c=\"%s\"", a);
 	queryf("UNLOCK TABLES");
-	disconnect_db();
 	N = strlen(a);
 	D = sqrt(N);
 	sum = D * (N + 1) / 2;
@@ -182,7 +180,6 @@ void fetch_job()
 	search(l);
 	for (i = 0; i < N; ++i)
 		a[i] += '0';
-	connect_db();
 	if (recipe[e] == -1)
 		queryf("LOCK TABLES jobs WRITE, solutions%d WRITE", D);
 	else
@@ -200,7 +197,6 @@ void fetch_job()
 		queryf("DELETE FROM jobs WHERE c=\"%s\"", a);
 	}
 	queryf("UNLOCK TABLES");
-	disconnect_db();
 	if (recipe[e] == -1)
 		printf("%d magic squares found.\n", M);
 	else
@@ -231,6 +227,7 @@ void child(int n)
 	memset(seconds, 0, sizeof(seconds));
 	memset(samples, 0, sizeof(samples));
 	memset(max, 0, sizeof(max));
+	connect_db();
 	while (1) {
 		time_t t = time(NULL);
 		if (setjmp(exception)) { /*Handle MySQL errors*/
@@ -241,6 +238,7 @@ void child(int n)
 			disconnect_db();
 			t = time(NULL);
 			while (time(NULL) - t < 60); /*Wait a minute*/
+			connect_db();
 			continue;
 		}
 		fetch_job();
